@@ -38,17 +38,26 @@ function checkHlsReady(name) {
   const entry = processes.get(name);
   if (!entry || entry.hlsReady) return;
 
-  const req = http.get('http://nginx:80/hls/stream.m3u8', (res) => {
+  const req = http.get({
+    host: 'nginx',
+    port: 80,
+    path: `/hls/stream.m3u8?t=${Date.now()}`,
+    agent: false // Disable keep-alive to avoid socket reuse issues on 404s
+  }, (res) => {
     res.resume();
-    if (res.statusCode === 200) {
+    if (res.statusCode >= 200 && res.statusCode < 400) {
+      process.stdout.write(`[ffmpeg:${name}] HLS manifest is ready (HTTP ${res.statusCode})\n`);
       entry.hlsReady = true;
-      try { require('./routes/status').broadcast(); } catch (_) {}
+      try { require('./routes/status').broadcast(); } catch (e) { process.stdout.write(`[ffmpeg:${name}] broadcast failed: ${e.message}\n`); }
     } else {
       setTimeout(() => checkHlsReady(name), 1000);
     }
   });
-  req.on('error', () => setTimeout(() => checkHlsReady(name), 1000));
-  req.setTimeout(2000, () => req.destroy());
+
+  req.on('error', (e) => {
+    process.stdout.write(`[ffmpeg:${name}] HLS poll error: ${e.message}\n`);
+    setTimeout(() => checkHlsReady(name), 1000);
+  });
 }
 
 function start(name, args, { onExit } = {}) {
