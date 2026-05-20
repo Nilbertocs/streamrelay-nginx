@@ -5,6 +5,7 @@ const NGINX_LIVE = 'rtmp://nginx/live/stream';
 
 function buildRelayArgs(ingestKey) {
   return [
+    '-rtmp_live', 'live',
     '-i', `rtmp://nginx/ingest/${ingestKey}`,
     '-c', 'copy',
     '-f', 'flv',

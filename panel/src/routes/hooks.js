@@ -13,14 +13,21 @@ router.post('/stream-start', (req, res) => {
   const ingestKey = db.prepare("SELECT value FROM settings WHERE key = 'ingest_key'").get()?.value;
   if (!ingestKey || streamName !== ingestKey) return res.status(403).send('Invalid stream key');
 
-  ffmpeg.stop('fallback');
-  ffmpeg.start('relay', ffmpeg.buildRelayArgs(streamName));
   db.prepare("INSERT INTO events (type, details) VALUES ('stream_start', ?)").run(
     JSON.stringify({ addr: req.body.addr })
   );
 
+  // Respond OK first so nginx accepts the OBS stream before the relay tries to read it.
+  // nginx holds the publish pending until it gets this response, so the ingest stream
+  // does not exist yet when this handler runs — starting FFmpeg before responding would
+  // cause it to connect to a stream that hasn't been accepted yet and immediately exit.
   res.send('OK');
-  broadcast();
+
+  setTimeout(() => {
+    ffmpeg.stop('fallback');
+    ffmpeg.start('relay', ffmpeg.buildRelayArgs(streamName));
+    broadcast();
+  }, 2000);
 });
 
 router.post('/stream-stop', (req, res) => {
