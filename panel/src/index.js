@@ -20,6 +20,8 @@ app.use(session({
   cookie: { httpOnly: true, secure: false, maxAge: 7 * 24 * 60 * 60 * 1000 }
 }));
 
+app.get('/health', (req, res) => res.json({ ok: true }));
+
 app.use('/assets', express.static(path.join(__dirname, 'public/assets')));
 
 app.get('/login.html', (req, res) => {
