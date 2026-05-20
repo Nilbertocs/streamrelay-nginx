@@ -433,7 +433,16 @@ function _startHls() {
   const video = document.getElementById('preview-video');
   const src = '/hls/stream.m3u8';
   if (typeof Hls !== 'undefined' && Hls.isSupported()) {
-    _hls = new Hls({ liveSyncDurationCount: 2, liveMaxLatencyDurationCount: 5 });
+    _hls = new Hls({
+      liveSyncDurationCount: 2,
+      liveMaxLatencyDurationCount: 5,
+      // Let HLS.js handle manifest 404s internally with retries
+      // instead of immediately treating them as fatal errors.
+      manifestLoadingMaxRetry: 10,
+      manifestLoadingRetryDelay: 2000,
+      levelLoadingMaxRetry: 6,
+      levelLoadingRetryDelay: 2000,
+    });
     _hls.loadSource(src);
     _hls.attachMedia(video);
     _hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
@@ -442,7 +451,7 @@ function _startHls() {
         _hls.destroy();
         _hls = null;
         if (_previewDisplayState !== 'offline') {
-          _hlsRetryTimer = setTimeout(_startHls, 4000);
+          _hlsRetryTimer = setTimeout(_startHls, 2000);
         }
       }
     });
