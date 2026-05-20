@@ -424,35 +424,13 @@ function renderStatus(data) {
 
 /* ── HLS Preview ─────────────────────────────────── */
 let _hls = null;
-let _lastState = 'offline';
+let _hlsRetryTimer = null;
+let _previewDisplayState = null;
 
-function updatePreview(state) {
-  if (state === _lastState) return;
-  _lastState = state;
-
-  const video   = document.getElementById('preview-video');
-  const offline = document.getElementById('preview-offline');
-  const badge   = document.getElementById('preview-badge');
-
-  if (state === 'offline') {
-    badge.className = 'status-badge offline';
-    badge.innerHTML = '<span class="dot"></span>OFFLINE';
-    video.style.display = 'none';
-    offline.style.display = 'flex';
-    if (_hls) { _hls.destroy(); _hls = null; }
-    video.src = '';
-    return;
-  }
-
-  badge.className = state === 'live' ? 'status-badge live' : 'status-badge fallback';
-  badge.innerHTML = state === 'live'
-    ? '<span class="dot"></span>AO VIVO'
-    : '<span class="dot"></span>FALLBACK';
-  video.style.display = 'block';
-  offline.style.display = 'none';
-
-  if (_hls) return; // already loaded
-
+function _startHls() {
+  _hlsRetryTimer = null;
+  if (_previewDisplayState === 'offline') return;
+  const video = document.getElementById('preview-video');
   const src = '/hls/stream.m3u8';
   if (typeof Hls !== 'undefined' && Hls.isSupported()) {
     _hls = new Hls({ liveSyncDurationCount: 2, liveMaxLatencyDurationCount: 5 });
@@ -460,12 +438,50 @@ function updatePreview(state) {
     _hls.attachMedia(video);
     _hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
     _hls.on(Hls.Events.ERROR, (_, d) => {
-      if (d.fatal) { _hls.destroy(); _hls = null; }
+      if (d.fatal) {
+        _hls.destroy();
+        _hls = null;
+        if (_previewDisplayState !== 'offline') {
+          _hlsRetryTimer = setTimeout(_startHls, 4000);
+        }
+      }
     });
   } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
     video.src = src;
     video.play().catch(() => {});
   }
+}
+
+function updatePreview(state) {
+  const video   = document.getElementById('preview-video');
+  const offline = document.getElementById('preview-offline');
+  const badge   = document.getElementById('preview-badge');
+
+  if (state !== _previewDisplayState) {
+    _previewDisplayState = state;
+    if (state === 'offline') {
+      badge.className = 'status-badge offline';
+      badge.innerHTML = '<span class="dot"></span>OFFLINE';
+      video.style.display = 'none';
+      offline.style.display = 'flex';
+    } else {
+      badge.className = state === 'live' ? 'status-badge live' : 'status-badge fallback';
+      badge.innerHTML = state === 'live'
+        ? '<span class="dot"></span>AO VIVO'
+        : '<span class="dot"></span>FALLBACK';
+      video.style.display = 'block';
+      offline.style.display = 'none';
+    }
+  }
+
+  if (state === 'offline') {
+    clearTimeout(_hlsRetryTimer);
+    _hlsRetryTimer = null;
+    if (_hls) { _hls.destroy(); _hls = null; }
+    return;
+  }
+
+  if (!_hls && !_hlsRetryTimer) _startHls();
 }
 
 /* ── SSE — instant status updates ───────────────── */

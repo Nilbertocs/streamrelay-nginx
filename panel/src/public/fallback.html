@@ -272,30 +272,31 @@ async function loadFiles() {
 /* ── Load fallback settings/status ──────────────── */
 async function loadFallbackStatus() {
   try {
-    const data = await api('GET', '/api/fallback/status');
+    const data = await api('GET', '/api/status');
     if (!data) return;
 
-    const toggle = document.getElementById('fallback-enabled-toggle');
-    toggle.checked = !!data.enabled;
+    document.getElementById('fallback-enabled-toggle').checked = !!data.fallbackEnabled;
 
-    const isRunning = !!data.running;
+    const isRunning = !!data.fallback?.running;
     const icon      = document.getElementById('fb-status-icon');
     const faIcon    = document.getElementById('fb-status-fa');
     const label     = document.getElementById('fb-status-label');
     const sub       = document.getElementById('fb-status-sub');
 
     if (isRunning) {
-      icon.className  = 'fallback-status-icon running';
+      icon.className   = 'fallback-status-icon running';
       faIcon.className = 'fa-solid fa-circle-play';
       label.textContent = 'Fallback em Execução';
-      label.className = 'fw-bold text-warning-sr';
-      sub.textContent = data.since ? `Em execução desde: ${formatDate(data.since)}` : 'Reproduzindo mídia de fallback';
+      label.className   = 'fw-bold text-warning-sr';
+      sub.textContent   = data.fallback?.startedAt
+        ? `Em execução desde: ${formatDate(data.fallback.startedAt)}`
+        : 'Reproduzindo mídia de fallback';
     } else {
-      icon.className  = 'fallback-status-icon stopped';
+      icon.className   = 'fallback-status-icon stopped';
       faIcon.className = 'fa-solid fa-circle-pause';
       label.textContent = 'Fallback Inativo';
-      label.className = 'fw-bold';
-      sub.textContent = 'Nenhuma transmissão de fallback em andamento';
+      label.className   = 'fw-bold';
+      sub.textContent   = 'Nenhuma transmissão de fallback em andamento';
     }
   } catch (_) { /* handled */ }
 }

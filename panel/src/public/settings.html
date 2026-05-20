@@ -333,11 +333,11 @@ function escHtml(str) {
 
 async function loadIngestKey() {
   try {
-    const data = await api('GET', '/api/settings/ingest');
+    const data = await api('GET', '/api/settings');
     if (!data) return;
 
-    _ingestKey = data.key || '';
-    const server = data.rtmp_server || `rtmp://${window.location.hostname}:1935/ingest`;
+    _ingestKey = data.ingest_key || '';
+    const server = `rtmp://${window.location.hostname}:1935/ingest`;
 
     updateKeyDisplay();
     document.getElementById('rtmp-full-display').textContent = _ingestKey
@@ -380,13 +380,13 @@ document.getElementById('btn-regen-key').addEventListener('click', async () => {
   btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Regenerando...';
 
   try {
-    const data = await api('POST', '/api/settings/ingest/regenerate');
-    _ingestKey  = data?.key || '';
+    const data = await api('POST', '/api/settings/regenerate-key');
+    _ingestKey  = data?.ingest_key || '';
     _keyVisible = true;
     updateKeyDisplay();
     document.getElementById('ingest-eye-icon').className = 'fa-solid fa-eye-slash';
 
-    const server = data?.rtmp_server || `rtmp://${window.location.hostname}:1935/ingest`;
+    const server = `rtmp://${window.location.hostname}:1935/ingest`;
     document.getElementById('rtmp-full-display').textContent = _ingestKey
       ? `${server}/${_ingestKey}` : server;
 
@@ -578,9 +578,9 @@ document.getElementById('change-pw-form').addEventListener('submit', async (e) =
   btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Salvando...';
 
   try {
-    await api('POST', '/api/auth/change-password', {
-      current_password: current,
-      new_password:     newPw,
+    await api('POST', '/api/users/change-password', {
+      currentPassword: current,
+      newPassword:     newPw,
     });
     showToast('Senha alterada com sucesso!', 'success');
     document.getElementById('change-pw-form').reset();
