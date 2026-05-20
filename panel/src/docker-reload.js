@@ -17,7 +17,7 @@ async function reloadNginx() {
     const { data } = await dockerRequest({
       method: 'GET',
       path: '/containers/json?filters=' + encodeURIComponent(JSON.stringify({
-        label: ['streamrelay.service=nginx'],
+        name: ['nginx'],
         status: ['running']
       }))
     });

@@ -8,7 +8,9 @@ function buildRelayArgs(ingestKey) {
   return [
     '-rtmp_live', 'live',
     '-i', `rtmp://nginx/ingest/${ingestKey}`,
-    '-c', 'copy',
+    // Lightweight transcode guarantees perfect sequence headers and keyframes for HLS
+    '-c:v', 'libx264', '-preset', 'veryfast', '-b:v', '3000k',
+    '-c:a', 'aac', '-b:a', '128k',
     '-f', 'flv',
     NGINX_LIVE
   ];
