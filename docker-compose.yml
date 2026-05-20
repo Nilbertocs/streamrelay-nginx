@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  nginx:
+    build: ./nginx
+    ports:
+      - "1935:1935"
+    volumes:
+      - ./data/nginx:/etc/nginx/conf.d
+      - ./data/videos:/app/data/videos
+    environment:
+      - HOOK_SECRET=${HOOK_SECRET}
+    labels:
+      - streamrelay.service=nginx
+    depends_on:
+      - panel
+    restart: unless-stopped
+    networks:
+      - internal
+
+  panel:
+    build: ./panel
+    volumes:
+      - ./data/db:/app/data/db
+      - ./data/videos:/app/data/videos
+      - ./data/nginx:/app/data/nginx
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - SESSION_SECRET=${SESSION_SECRET}
+      - HOOK_SECRET=${HOOK_SECRET}
+      - ADMIN_EMAIL=${ADMIN_EMAIL}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.streamrelay.rule=Host(`${DOMAIN}`)
+      - traefik.http.routers.streamrelay.entrypoints=websecure
+      - traefik.http.routers.streamrelay.tls.certresolver=le
+      - traefik.http.services.streamrelay.loadbalancer.server.port=3000
+    restart: unless-stopped
+    networks:
+      - internal
+      - traefik_public
+
+networks:
+  internal:
+    driver: bridge
+  traefik_public:
+    external: true
+    name: traefik_public

@@ -1,0 +1,12 @@
+data/
+.env
+node_modules/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+.DS_Store
+Thumbs.db
+.agents/
+skills-lock.json
+stack exemplo.yaml
+PLAN.md

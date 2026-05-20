@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Login — StreamRelay</title>
+
+  <!-- Bootstrap 5.3 -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
+  <!-- Font Awesome 6 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <!-- App styles -->
+  <link rel="stylesheet" href="assets/style.css" />
+
+  <style>
+    /* Page-specific overrides */
+    body { background: var(--bg-main); }
+
+    .login-card .form-group:last-of-type { margin-bottom: 20px; }
+
+    .input-eye-group {
+      position: relative;
+    }
+    .input-eye-group .form-control-sr { padding-right: 40px; }
+    .input-eye-group .eye-toggle {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 0;
+      font-size: 14px;
+      line-height: 1;
+    }
+    .input-eye-group .eye-toggle:hover { color: var(--text-primary); }
+
+    .login-footer {
+      margin-top: 28px;
+      text-align: center;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+
+<div class="login-page">
+  <div class="login-card">
+
+    <!-- Logo -->
+    <div class="login-logo">
+      <div class="logo-icon">
+        <i class="fa-solid fa-tower-broadcast"></i>
+      </div>
+      <h1>StreamRelay</h1>
+      <p>Painel de controle de transmissão</p>
+    </div>
+
+    <!-- Error alert -->
+    <div id="login-error" class="alert-sr danger mb-4" style="display:none;">
+      <i class="fa-solid fa-circle-xmark"></i>
+      <span id="login-error-msg">Credenciais inválidas.</span>
+    </div>
+
+    <!-- Form -->
+    <form id="login-form" novalidate>
+
+      <div class="form-group">
+        <label class="form-label-sr" for="email">E-mail</label>
+        <input
+          id="email"
+          type="email"
+          class="form-control-sr"
+          placeholder="seu@email.com"
+          autocomplete="username"
+          required
+        />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label-sr" for="password">Senha</label>
+        <div class="input-eye-group">
+          <input
+            id="password"
+            type="password"
+            class="form-control-sr"
+            placeholder="••••••••"
+            autocomplete="current-password"
+            required
+          />
+          <button type="button" class="eye-toggle" id="toggle-pw" aria-label="Mostrar/ocultar senha">
+            <i class="fa-solid fa-eye" id="eye-icon"></i>
+          </button>
+        </div>
+      </div>
+
+      <button type="submit" class="btn-sr btn-sr-primary w-100" id="login-btn">
+        <i class="fa-solid fa-right-to-bracket"></i>
+        Entrar
+      </button>
+
+    </form>
+
+    <div class="login-footer">
+      StreamRelay &copy; 2025 &mdash; Todos os direitos reservados
+    </div>
+  </div>
+</div>
+
+<!-- Bootstrap JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+'use strict';
+
+/* Password visibility toggle */
+const togglePwBtn = document.getElementById('toggle-pw');
+const passwordInput = document.getElementById('password');
+const eyeIcon = document.getElementById('eye-icon');
+
+togglePwBtn.addEventListener('click', () => {
+  const isHidden = passwordInput.type === 'password';
+  passwordInput.type = isHidden ? 'text' : 'password';
+  eyeIcon.className = isHidden ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye';
+});
+
+/* Show / hide error message */
+function showError(msg) {
+  const el = document.getElementById('login-error');
+  document.getElementById('login-error-msg').textContent = msg;
+  el.style.display = 'flex';
+}
+
+function hideError() {
+  document.getElementById('login-error').style.display = 'none';
+}
+
+/* Login form submission */
+const loginForm = document.getElementById('login-form');
+const loginBtn  = document.getElementById('login-btn');
+
+loginForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  hideError();
+
+  const email    = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+
+  if (!email || !password) {
+    showError('Preencha e-mail e senha.');
+    return;
+  }
+
+  loginBtn.disabled = true;
+  loginBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Entrando...';
+
+  try {
+    const res = await fetch('/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({ email, password }),
+    });
+
+    if (res.ok) {
+      /* Redirect to dashboard on success */
+      window.location.href = '/';
+      return;
+    }
+
+    let msg = 'Credenciais inválidas.';
+    try {
+      const data = await res.json();
+      if (data && (data.message || data.error)) {
+        msg = data.message || data.error;
+      }
+    } catch (_) { /* ignore parse error */ }
+
+    showError(msg);
+
+  } catch (_) {
+    showError('Erro de conexão. Tente novamente.');
+  } finally {
+    loginBtn.disabled = false;
+    loginBtn.innerHTML = '<i class="fa-solid fa-right-to-bracket"></i> Entrar';
+  }
+});
+
+/* Auto-focus email field */
+document.getElementById('email').focus();
+</script>
+</body>
+</html>

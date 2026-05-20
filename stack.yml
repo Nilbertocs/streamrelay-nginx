@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  nginx:
+    image: ghcr.io/nilbertocs/streamrelay-nginx:latest
+    ports:
+      - target: 1935
+        published: 1935
+        protocol: tcp
+        mode: host
+    volumes:
+      - nginx_conf:/etc/nginx/conf.d
+      - videos:/app/data/videos
+    environment:
+      - HOOK_SECRET=${HOOK_SECRET}
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      labels:
+        - streamrelay.service=nginx
+    networks:
+      - internal
+
+  panel:
+    image: ghcr.io/nilbertocs/streamrelay-panel:latest
+    volumes:
+      - db_data:/app/data/db
+      - videos:/app/data/videos
+      - nginx_conf:/app/data/nginx
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - SESSION_SECRET=${SESSION_SECRET}
+      - HOOK_SECRET=${HOOK_SECRET}
+      - ADMIN_EMAIL=${ADMIN_EMAIL}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.streamrelay.rule=Host(`${DOMAIN}`)
+        - traefik.http.routers.streamrelay.entrypoints=websecure
+        - traefik.http.routers.streamrelay.tls.certresolver=le
+        - traefik.http.services.streamrelay.loadbalancer.server.port=3000
+    networks:
+      - internal
+      - traefik_public
+
+volumes:
+  db_data:
+  nginx_conf:
+  videos:
+
+networks:
+  internal:
+    driver: overlay
+  traefik_public:
+    external: true
+    name: traefik_public

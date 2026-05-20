@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fallback — StreamRelay</title>
+
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <link rel="stylesheet" href="assets/style.css" />
+
+  <style>
+    .upload-section { margin-bottom: 24px; }
+
+    .progress-wrap {
+      margin-top: 14px;
+      display: none;
+    }
+    .progress-wrap.visible { display: block; }
+
+    .progress-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+
+    .fallback-status-bar {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 14px 18px;
+      background: var(--bg-sidebar);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      margin-bottom: 20px;
+    }
+
+    .fallback-status-icon {
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+    .fallback-status-icon.running  { background: rgba(245,158,11,0.15); color: var(--warning); }
+    .fallback-status-icon.stopped  { background: rgba(100,116,139,0.15); color: var(--text-muted); }
+
+    .fallback-toggle-section {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .fallback-toggle-label {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    .fallback-toggle-sub {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .active-star { color: var(--warning); }
+    .inactive-star { color: var(--border); }
+  </style>
+</head>
+<body>
+<div class="app-wrapper">
+
+  <!-- ── Sidebar ── -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-icon"><i class="fa-solid fa-tower-broadcast"></i></div>
+      StreamRelay
+    </div>
+    <nav class="sidebar-nav">
+      <span class="nav-section-label">Principal</span>
+      <a href="index.html"    class="nav-link"><i class="fa-solid fa-gauge-high"></i>Dashboard</a>
+      <a href="streams.html"  class="nav-link"><i class="fa-solid fa-satellite-dish"></i>Destinos</a>
+      <a href="fallback.html" class="nav-link"><i class="fa-solid fa-film"></i>Fallback</a>
+      <span class="nav-section-label">Sistema</span>
+      <a href="settings.html" class="nav-link"><i class="fa-solid fa-gear"></i>Configurações</a>
+    </nav>
+    <div class="sidebar-footer">v1.0.0</div>
+  </aside>
+
+  <!-- ── Main ── -->
+  <div class="main-content">
+
+    <header class="top-navbar">
+      <span class="navbar-title"><i class="fa-solid fa-film me-2 text-muted-sr"></i>Mídia de Fallback</span>
+      <div class="navbar-right">
+        <div class="user-info">
+          <div class="user-avatar" id="navbar-user-avatar">U</div>
+          <span id="navbar-user-name">Carregando...</span>
+        </div>
+        <button class="btn-sr btn-sr-ghost" data-action="logout">
+          <i class="fa-solid fa-right-from-bracket"></i> Sair
+        </button>
+      </div>
+    </header>
+
+    <main class="page-body">
+
+      <div class="page-header">
+        <h1>Fallback</h1>
+        <p>Gerencie a mídia exibida quando o stream principal cai</p>
+      </div>
+
+      <!-- ── Status bar ── -->
+      <div class="fallback-status-bar" id="fallback-status-bar">
+        <div class="fallback-status-icon stopped" id="fb-status-icon">
+          <i class="fa-solid fa-circle-pause" id="fb-status-fa"></i>
+        </div>
+        <div style="flex:1;">
+          <div class="fw-bold" id="fb-status-label">Fallback Inativo</div>
+          <div class="small text-muted-sr" id="fb-status-sub">Nenhuma transmissão de fallback em andamento</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <div class="fallback-toggle-section">
+            <label class="toggle-switch" title="Habilitar/desabilitar fallback automático">
+              <input type="checkbox" id="fallback-enabled-toggle" />
+              <span class="toggle-slider"></span>
+            </label>
+            <div>
+              <div class="fallback-toggle-label">Auto-fallback</div>
+              <div class="fallback-toggle-sub">Ativa ao perder sinal</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;margin-left:8px;">
+            <button class="btn-sr btn-sr-warning" id="btn-start-fb" title="Iniciar fallback manualmente">
+              <i class="fa-solid fa-play"></i> Iniciar
+            </button>
+            <button class="btn-sr btn-sr-danger" id="btn-stop-fb" title="Parar fallback">
+              <i class="fa-solid fa-stop"></i> Parar
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Upload Zone ── -->
+      <div class="card upload-section">
+        <div class="card-header-section">
+          <h5><i class="fa-solid fa-cloud-arrow-up me-2"></i>Enviar Mídia</h5>
+          <span class="small text-muted-sr">MP4, JPG, PNG — máx. 500 MB</span>
+        </div>
+
+        <div class="dropzone" id="dropzone">
+          <input type="file" id="file-input" accept=".mp4,.jpg,.jpeg,.png" multiple />
+          <i class="fa-solid fa-cloud-arrow-up dropzone-icon"></i>
+          <div class="dropzone-title">Arraste arquivos aqui ou clique para selecionar</div>
+          <div class="dropzone-subtitle">Formatos aceitos: MP4, JPG, PNG — tamanho máximo 500 MB por arquivo</div>
+        </div>
+
+        <!-- Progress area -->
+        <div class="progress-wrap" id="progress-wrap">
+          <div class="progress-label">
+            <span id="progress-filename">Enviando...</span>
+            <span id="progress-percent">0%</span>
+          </div>
+          <div class="progress-sr">
+            <div class="progress-sr-bar" id="progress-bar" style="width:0%"></div>
+          </div>
+          <div class="small text-muted-sr mt-1" id="progress-detail"></div>
+        </div>
+      </div>
+
+      <!-- ── Files table ── -->
+      <div class="card">
+        <div class="card-header-section">
+          <h5><i class="fa-solid fa-folder-open me-2"></i>Arquivos Disponíveis</h5>
+          <button class="btn-sr btn-sr-ghost" style="padding:5px 12px;font-size:12px;" onclick="loadFiles()">
+            <i class="fa-solid fa-rotate"></i> Atualizar
+          </button>
+        </div>
+
+        <div class="table-responsive">
+          <table class="table-dark-custom" id="files-table">
+            <thead>
+              <tr>
+                <th>Arquivo</th>
+                <th>Tipo</th>
+                <th>Tamanho</th>
+                <th style="text-align:center;">Ativo</th>
+                <th style="width:120px;text-align:center;">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="files-tbody">
+              <tr>
+                <td colspan="5" class="text-center text-muted-sr py-4">
+                  <i class="fa-solid fa-spinner fa-spin me-2"></i>Carregando...
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="assets/app.js"></script>
+<script>
+'use strict';
+
+let _files = [];
+
+/* ── Render files table ──────────────────────────── */
+function renderFiles(files) {
+  _files = files;
+  const tbody = document.getElementById('files-tbody');
+
+  if (!files.length) {
+    tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted-sr py-4">
+      <i class="fa-solid fa-folder-open me-2"></i>Nenhum arquivo enviado ainda.
+    </td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = files.map(f => {
+    const isActive = !!f.active;
+    const typeStr  = (f.type || f.mime_type || '').toLowerCase();
+    const isVideo  = typeStr.includes('mp4') || typeStr.includes('video');
+    const badgeClass = isVideo ? 'badge-mp4' : 'badge-image';
+    const badgeText  = isVideo ? 'MP4' : 'Imagem';
+    const rowClass   = isActive ? 'row-active' : '';
+
+    return `<tr class="${rowClass}" data-id="${f.id}">
+      <td>
+        <div class="d-flex align-center gap-2">
+          <i class="fa-solid ${isVideo ? 'fa-file-video' : 'fa-file-image'} text-muted-sr"></i>
+          <span class="fw-bold">${escHtml(f.name || f.filename)}</span>
+        </div>
+      </td>
+      <td><span class="badge-platform ${badgeClass}">${badgeText}</span></td>
+      <td class="text-muted-sr">${formatBytes(f.size || 0)}</td>
+      <td style="text-align:center;">
+        <i class="fa-solid fa-star ${isActive ? 'active-star' : 'inactive-star'}"
+           title="${isActive ? 'Arquivo ativo' : 'Inativo'}"></i>
+      </td>
+      <td style="text-align:center;">
+        <div style="display:flex;gap:6px;justify-content:center;">
+          ${!isActive ? `<button class="btn-sr-icon star" onclick="activateFile(${f.id})" title="Definir como ativo">
+            <i class="fa-solid fa-star"></i>
+          </button>` : `<button class="btn-sr-icon" style="opacity:0.4;cursor:default;background:rgba(245,158,11,0.08);color:var(--warning);" disabled title="Já está ativo">
+            <i class="fa-solid fa-star"></i>
+          </button>`}
+          <button class="btn-sr-icon delete" onclick="deleteFile(${f.id})" title="Excluir">
+            <i class="fa-solid fa-trash"></i>
+          </button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+/* ── Load files ──────────────────────────────────── */
+async function loadFiles() {
+  try {
+    const data = await api('GET', '/api/fallback/files');
+    renderFiles(Array.isArray(data) ? data : (data?.files || []));
+  } catch (_) { /* handled */ }
+}
+
+/* ── Load fallback settings/status ──────────────── */
+async function loadFallbackStatus() {
+  try {
+    const data = await api('GET', '/api/fallback/status');
+    if (!data) return;
+
+    const toggle = document.getElementById('fallback-enabled-toggle');
+    toggle.checked = !!data.enabled;
+
+    const isRunning = !!data.running;
+    const icon      = document.getElementById('fb-status-icon');
+    const faIcon    = document.getElementById('fb-status-fa');
+    const label     = document.getElementById('fb-status-label');
+    const sub       = document.getElementById('fb-status-sub');
+
+    if (isRunning) {
+      icon.className  = 'fallback-status-icon running';
+      faIcon.className = 'fa-solid fa-circle-play';
+      label.textContent = 'Fallback em Execução';
+      label.className = 'fw-bold text-warning-sr';
+      sub.textContent = data.since ? `Em execução desde: ${formatDate(data.since)}` : 'Reproduzindo mídia de fallback';
+    } else {
+      icon.className  = 'fallback-status-icon stopped';
+      faIcon.className = 'fa-solid fa-circle-pause';
+      label.textContent = 'Fallback Inativo';
+      label.className = 'fw-bold';
+      sub.textContent = 'Nenhuma transmissão de fallback em andamento';
+    }
+  } catch (_) { /* handled */ }
+}
+
+/* ── Activate file ───────────────────────────────── */
+async function activateFile(id) {
+  try {
+    await api('POST', `/api/fallback/files/${id}/activate`);
+    showToast('Arquivo definido como ativo!', 'success');
+    await loadFiles();
+  } catch (_) { /* handled */ }
+}
+
+/* ── Delete file ─────────────────────────────────── */
+async function deleteFile(id) {
+  const file = _files.find(f => f.id === id);
+  const name = file?.name || file?.filename || `#${id}`;
+  const ok = await confirmDialog(`Excluir o arquivo "${name}"?`);
+  if (!ok) return;
+  try {
+    await api('DELETE', `/api/fallback/files/${id}`);
+    showToast('Arquivo excluído.', 'warning');
+    await loadFiles();
+  } catch (_) { /* handled */ }
+}
+
+/* ── Auto-fallback toggle ────────────────────────── */
+document.getElementById('fallback-enabled-toggle').addEventListener('change', async function () {
+  const enabled = this.checked;
+  try {
+    await api('PATCH', '/api/settings', { fallback_enabled: enabled });
+    showToast(enabled ? 'Auto-fallback ativado.' : 'Auto-fallback desativado.', 'success');
+  } catch (_) {
+    this.checked = !enabled;
+  }
+});
+
+/* ── Manual controls ─────────────────────────────── */
+document.getElementById('btn-start-fb').addEventListener('click', async () => {
+  const btn = document.getElementById('btn-start-fb');
+  btn.disabled = true;
+  try {
+    await api('POST', '/api/fallback/start');
+    showToast('Fallback iniciado.', 'success');
+    await loadFallbackStatus();
+  } catch (_) { /* handled */ }
+  finally { btn.disabled = false; }
+});
+
+document.getElementById('btn-stop-fb').addEventListener('click', async () => {
+  const btn = document.getElementById('btn-stop-fb');
+  btn.disabled = true;
+  try {
+    await api('POST', '/api/fallback/stop');
+    showToast('Fallback parado.', 'warning');
+    await loadFallbackStatus();
+  } catch (_) { /* handled */ }
+  finally { btn.disabled = false; }
+});
+
+/* ── Dropzone / File Upload ──────────────────────── */
+const dropzone  = document.getElementById('dropzone');
+const fileInput = document.getElementById('file-input');
+
+dropzone.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  dropzone.classList.add('drag-over');
+});
+
+dropzone.addEventListener('dragleave', () => {
+  dropzone.classList.remove('drag-over');
+});
+
+dropzone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dropzone.classList.remove('drag-over');
+  const files = Array.from(e.dataTransfer.files);
+  processFiles(files);
+});
+
+fileInput.addEventListener('change', () => {
+  const files = Array.from(fileInput.files);
+  processFiles(files);
+  fileInput.value = '';
+});
+
+const MAX_SIZE = 500 * 1024 * 1024; // 500 MB
+const ALLOWED_TYPES = ['video/mp4', 'image/jpeg', 'image/png'];
+const ALLOWED_EXTS  = ['.mp4', '.jpg', '.jpeg', '.png'];
+
+async function processFiles(files) {
+  for (const file of files) {
+    /* Validate type */
+    const ext  = '.' + file.name.split('.').pop().toLowerCase();
+    const ok   = ALLOWED_TYPES.includes(file.type) || ALLOWED_EXTS.includes(ext);
+    if (!ok) {
+      showToast(`Tipo não suportado: ${file.name}`, 'error');
+      continue;
+    }
+    /* Validate size */
+    if (file.size > MAX_SIZE) {
+      showToast(`Arquivo muito grande (máx 500 MB): ${file.name}`, 'error');
+      continue;
+    }
+    await uploadFile(file);
+  }
+}
+
+async function uploadFile(file) {
+  const wrap    = document.getElementById('progress-wrap');
+  const bar     = document.getElementById('progress-bar');
+  const pct     = document.getElementById('progress-percent');
+  const fname   = document.getElementById('progress-filename');
+  const detail  = document.getElementById('progress-detail');
+
+  fname.textContent  = file.name;
+  pct.textContent    = '0%';
+  bar.style.width    = '0%';
+  detail.textContent = '';
+  wrap.classList.add('visible');
+
+  return new Promise((resolve) => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/fallback/upload');
+    xhr.withCredentials = true;
+
+    xhr.upload.addEventListener('progress', (e) => {
+      if (e.lengthComputable) {
+        const p = Math.round((e.loaded / e.total) * 100);
+        bar.style.width = p + '%';
+        pct.textContent = p + '%';
+        detail.textContent = `${formatBytes(e.loaded)} / ${formatBytes(e.total)}`;
+      }
+    });
+
+    xhr.addEventListener('load', async () => {
+      if (xhr.status === 200 || xhr.status === 201) {
+        bar.style.width = '100%';
+        pct.textContent = '100%';
+        showToast(`"${file.name}" enviado com sucesso!`, 'success');
+        await loadFiles();
+      } else if (xhr.status === 401) {
+        window.location.href = '/login.html';
+      } else {
+        let msg = `Erro ${xhr.status}`;
+        try { msg = JSON.parse(xhr.responseText)?.message || msg; } catch (_) {}
+        showToast(`Falha ao enviar: ${msg}`, 'error');
+      }
+      setTimeout(() => wrap.classList.remove('visible'), 2000);
+      resolve();
+    });
+
+    xhr.addEventListener('error', () => {
+      showToast('Erro de rede ao enviar arquivo.', 'error');
+      wrap.classList.remove('visible');
+      resolve();
+    });
+
+    xhr.send(formData);
+  });
+}
+
+/* ── Escape helper ───────────────────────────────── */
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+/* ── Init ────────────────────────────────────────── */
+(async function init() {
+  await Promise.all([loadFallbackStatus(), loadFiles()]);
+})();
+</script>
+</body>
+</html>

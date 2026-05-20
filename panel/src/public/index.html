@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard — StreamRelay</title>
+
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <link rel="stylesheet" href="assets/style.css" />
+
+  <style>
+    .platform-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 10px;
+    }
+    .platform-item {
+      background: var(--bg-sidebar);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .platform-item-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    .big-status {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .big-status-icon {
+      width: 52px;
+      height: 52px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      flex-shrink: 0;
+    }
+    .big-status-icon.live     { background: rgba(34,197,94,0.15);  color: var(--success); }
+    .big-status-icon.fallback { background: rgba(245,158,11,0.15); color: var(--warning); }
+    .big-status-icon.offline  { background: rgba(100,116,139,0.15);color: var(--text-muted); }
+    .big-status-text h2 {
+      font-size: 22px;
+      font-weight: 800;
+      margin: 0 0 3px;
+    }
+    .big-status-text p { margin: 0; font-size: 12px; color: var(--text-muted); }
+    .controls-row { display: flex; gap: 10px; flex-wrap: wrap; }
+  </style>
+</head>
+<body>
+<div class="app-wrapper">
+
+  <!-- ── Sidebar ── -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-icon"><i class="fa-solid fa-tower-broadcast"></i></div>
+      StreamRelay
+    </div>
+    <nav class="sidebar-nav">
+      <span class="nav-section-label">Principal</span>
+      <a href="index.html"   class="nav-link"><i class="fa-solid fa-gauge-high"></i>Dashboard</a>
+      <a href="streams.html" class="nav-link"><i class="fa-solid fa-satellite-dish"></i>Destinos</a>
+      <a href="fallback.html" class="nav-link"><i class="fa-solid fa-film"></i>Fallback</a>
+      <span class="nav-section-label">Sistema</span>
+      <a href="settings.html" class="nav-link"><i class="fa-solid fa-gear"></i>Configurações</a>
+    </nav>
+    <div class="sidebar-footer">v1.0.0</div>
+  </aside>
+
+  <!-- ── Main ── -->
+  <div class="main-content">
+
+    <!-- Top Navbar -->
+    <header class="top-navbar">
+      <span class="navbar-title"><i class="fa-solid fa-gauge-high me-2 text-muted-sr"></i>Dashboard</span>
+      <div class="navbar-right">
+        <div class="user-info">
+          <div class="user-avatar" id="navbar-user-avatar">U</div>
+          <span id="navbar-user-name">Carregando...</span>
+        </div>
+        <button class="btn-sr btn-sr-ghost" data-action="logout">
+          <i class="fa-solid fa-right-from-bracket"></i>
+          Sair
+        </button>
+      </div>
+    </header>
+
+    <!-- Page Body -->
+    <main class="page-body">
+
+      <div class="page-header">
+        <h1>Dashboard</h1>
+        <p>Visão geral da transmissão em tempo real</p>
+      </div>
+
+      <!-- Row 1: Main status + RTMP -->
+      <div class="row g-3 mb-3">
+
+        <!-- Stream State Card -->
+        <div class="col-lg-6">
+          <div class="card h-100">
+            <div class="card-header-section">
+              <h5><i class="fa-solid fa-signal me-2"></i>Estado da Transmissão</h5>
+              <span id="last-updated" class="small text-muted-sr"></span>
+            </div>
+
+            <div class="big-status mb-3" id="stream-status-block">
+              <div class="big-status-icon offline" id="status-icon">
+                <i class="fa-solid fa-circle-xmark" id="status-fa-icon"></i>
+              </div>
+              <div class="big-status-text">
+                <h2 id="status-label">OFFLINE</h2>
+                <p id="status-sub">Aguardando sinal de entrada</p>
+              </div>
+            </div>
+
+            <div class="row g-2">
+              <div class="col-6">
+                <div class="stat-box">
+                  <div class="stat-box-label">Tempo ativo</div>
+                  <div class="stat-box-value" id="uptime-value">—</div>
+                  <div class="stat-box-sub" id="uptime-since">—</div>
+                </div>
+              </div>
+              <div class="col-6">
+                <div class="stat-box">
+                  <div class="stat-box-label">Destinos ativos</div>
+                  <div class="stat-box-value" id="active-destinations">—</div>
+                  <div class="stat-box-sub">plataformas</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- RTMP Ingest URL -->
+        <div class="col-lg-6">
+          <div class="card h-100">
+            <div class="card-header-section">
+              <h5><i class="fa-solid fa-plug me-2"></i>Ingest OBS / Encoder</h5>
+            </div>
+
+            <p class="small text-muted-sr mb-3">
+              Configure seu OBS ou encoder com as informações abaixo para iniciar a transmissão.
+            </p>
+
+            <div class="form-group">
+              <label class="form-label-sr">Servidor RTMP</label>
+              <div class="code-block">
+                <span class="code-value" id="rtmp-server">rtmp://...</span>
+                <button class="btn-sr-icon copy" onclick="copyText(document.getElementById('rtmp-server').textContent)" title="Copiar">
+                  <i class="fa-regular fa-copy"></i>
+                </button>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label-sr">Chave de Stream</label>
+              <div class="code-block">
+                <span class="code-value" id="ingest-key">••••••••••••••••</span>
+                <div style="display:flex;gap:6px;">
+                  <button class="btn-sr-icon copy" id="btn-copy-key" title="Copiar chave">
+                    <i class="fa-regular fa-copy"></i>
+                  </button>
+                  <button class="btn-sr-icon" style="background:rgba(100,116,139,0.15);color:var(--text-muted);" id="btn-toggle-key" title="Mostrar/ocultar">
+                    <i class="fa-solid fa-eye" id="key-eye-icon"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-group mb-0">
+              <label class="form-label-sr">URL Completa (Servidor + Chave)</label>
+              <div class="code-block">
+                <span class="code-value" id="rtmp-full">rtmp://...</span>
+                <button class="btn-sr-icon copy" onclick="copyText(document.getElementById('rtmp-full').textContent)" title="Copiar URL completa">
+                  <i class="fa-regular fa-copy"></i>
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- Row 2: Relay status + Fallback status -->
+      <div class="row g-3 mb-3">
+
+        <!-- Relay status -->
+        <div class="col-md-6">
+          <div class="card h-100">
+            <div class="card-header-section">
+              <h5><i class="fa-solid fa-rotate me-2"></i>Relay</h5>
+              <span id="relay-badge" class="status-badge offline">
+                <span class="dot"></span>OFFLINE
+              </span>
+            </div>
+            <div class="small text-muted-sr mb-2">Iniciado em</div>
+            <div class="fw-bold" id="relay-start-time">—</div>
+          </div>
+        </div>
+
+        <!-- Fallback status -->
+        <div class="col-md-6">
+          <div class="card h-100">
+            <div class="card-header-section">
+              <h5><i class="fa-solid fa-film me-2"></i>Fallback</h5>
+              <span id="fallback-badge" class="status-badge offline">
+                <span class="dot"></span>INATIVO
+              </span>
+            </div>
+            <div class="small text-muted-sr mb-2">Arquivo ativo</div>
+            <div class="fw-bold" id="fallback-file">Nenhum</div>
+            <div class="small text-muted-sr mt-1" id="fallback-since">—</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Row 3: Platforms + Controls -->
+      <div class="row g-3 mb-3">
+
+        <!-- Platform list -->
+        <div class="col-lg-8">
+          <div class="card">
+            <div class="card-header-section">
+              <h5><i class="fa-solid fa-satellite-dish me-2"></i>Plataformas de Destino</h5>
+              <a href="streams.html" class="btn-sr btn-sr-ghost" style="padding:5px 12px;font-size:12px;">
+                <i class="fa-solid fa-pen-to-square"></i> Gerenciar
+              </a>
+            </div>
+            <div class="platform-grid" id="platform-list">
+              <div class="text-muted-sr small">Carregando...</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Manual controls -->
+        <div class="col-lg-4">
+          <div class="card h-100">
+            <div class="card-header-section">
+              <h5><i class="fa-solid fa-sliders me-2"></i>Controles Manuais</h5>
+            </div>
+
+            <p class="small text-muted-sr mb-3">
+              Use os botões abaixo para controlar o fallback manualmente.
+            </p>
+
+            <div class="controls-row">
+              <button class="btn-sr btn-sr-warning flex-fill" id="btn-start-fallback">
+                <i class="fa-solid fa-play"></i>
+                Iniciar Fallback
+              </button>
+              <button class="btn-sr btn-sr-danger flex-fill" id="btn-stop-fallback">
+                <i class="fa-solid fa-stop"></i>
+                Parar Fallback
+              </button>
+            </div>
+
+            <hr class="divider-sr" />
+
+            <div class="small text-muted-sr mb-2">Status do fallback</div>
+            <div id="fallback-control-status" class="fw-bold text-muted-sr">Inativo</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Row 4: Event Log -->
+      <div class="row g-3">
+        <div class="col-12">
+          <div class="card">
+            <div class="card-header-section">
+              <h5><i class="fa-solid fa-list-ul me-2"></i>Log de Eventos Recentes</h5>
+              <span class="small text-muted-sr">Últimos 20 eventos</span>
+            </div>
+            <div class="event-log" id="event-log">
+              <div class="event-log-item">
+                <span class="event-dot info"></span>
+                <span class="event-time">—</span>
+                <span class="event-text text-muted-sr">Aguardando dados...</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div><!-- /main-content -->
+</div><!-- /app-wrapper -->
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="assets/app.js"></script>
+<script>
+'use strict';
+
+let _keyVisible = false;
+let _rawKey = '';
+
+const EVENT_LABELS = {
+  stream_start:    { dot: 'success', label: 'Stream iniciado' },
+  stream_stop:     { dot: 'warning', label: 'Stream encerrado' },
+  key_regenerated: { dot: 'info',    label: 'Chave de ingest regenerada' },
+};
+
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+document.getElementById('btn-toggle-key').addEventListener('click', () => {
+  _keyVisible = !_keyVisible;
+  document.getElementById('ingest-key').textContent = _keyVisible ? (_rawKey || '—') : '••••••••••••••••';
+  document.getElementById('key-eye-icon').className = _keyVisible ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye';
+});
+
+document.getElementById('btn-copy-key').addEventListener('click', () => { if (_rawKey) copyText(_rawKey); });
+
+function renderStatus(data) {
+  const state = (data.state || 'offline').toLowerCase();
+  const iconMap = {
+    live:     { icon: 'fa-solid fa-circle-dot',  label: 'AO VIVO',  sub: 'Transmitindo para os destinos' },
+    fallback: { icon: 'fa-solid fa-film',         label: 'FALLBACK', sub: 'Reproduzindo mídia de fallback' },
+    offline:  { icon: 'fa-solid fa-circle-xmark', label: 'OFFLINE',  sub: 'Aguardando sinal de entrada' },
+  };
+  const m = iconMap[state] || iconMap.offline;
+
+  document.getElementById('status-label').textContent = m.label;
+  document.getElementById('status-fa-icon').className = m.icon;
+  document.getElementById('status-icon').className = `big-status-icon ${state}`;
+  document.getElementById('status-sub').textContent = m.sub;
+
+  const relayBadge = document.getElementById('relay-badge');
+  if (data.relay?.running) {
+    relayBadge.className = 'status-badge live';
+    relayBadge.innerHTML = '<span class="dot"></span>ATIVO';
+  } else {
+    relayBadge.className = 'status-badge offline';
+    relayBadge.innerHTML = '<span class="dot"></span>PARADO';
+  }
+  document.getElementById('relay-start-time').textContent = data.relay?.startedAt ? formatDate(data.relay.startedAt) : '—';
+
+  const fbBadge = document.getElementById('fallback-badge');
+  const fbRunning = !!data.fallback?.running;
+  fbBadge.className = fbRunning ? 'status-badge fallback' : 'status-badge offline';
+  fbBadge.innerHTML = fbRunning ? '<span class="dot"></span>ATIVO' : '<span class="dot"></span>INATIVO';
+  document.getElementById('fallback-control-status').textContent = fbRunning ? 'Fallback em execução' : 'Inativo';
+  document.getElementById('fallback-control-status').className = fbRunning ? 'fw-bold' : 'fw-bold text-muted-sr';
+  document.getElementById('fallback-file').textContent = data.activeFile?.name || 'Nenhum';
+  document.getElementById('fallback-since').textContent = data.fallback?.startedAt ? `Desde: ${formatDate(data.fallback.startedAt)}` : '';
+
+  document.getElementById('uptime-value').textContent = data.relay?.startedAt ? formatRelative(data.relay.startedAt) : '—';
+  document.getElementById('uptime-since').textContent = data.relay?.startedAt ? formatDate(data.relay.startedAt) : '—';
+
+  const streams = Array.isArray(data.streams) ? data.streams : [];
+  const active = streams.filter(s => s.enabled).length;
+  document.getElementById('active-destinations').textContent = `${active} / ${streams.length}`;
+
+  const grid = document.getElementById('platform-list');
+  if (streams.length === 0) {
+    grid.innerHTML = '<div class="text-muted-sr small">Nenhum destino configurado. <a href="streams.html">Adicionar</a></div>';
+  } else {
+    grid.innerHTML = streams.map(s => `
+      <div class="platform-item">
+        <span class="platform-item-name">${escHtml(s.name)}</span>
+        <span class="badge-platform ${s.enabled ? 'badge-enabled' : 'badge-disabled'}">${s.enabled ? 'On' : 'Off'}</span>
+      </div>`).join('');
+  }
+
+  _rawKey = data.ingestKey || '';
+  const server = `rtmp://${window.location.hostname}:1935/ingest`;
+  document.getElementById('rtmp-server').textContent = server;
+  document.getElementById('rtmp-full').textContent = _rawKey ? `${server}/${_rawKey}` : server;
+  document.getElementById('ingest-key').textContent = _keyVisible ? _rawKey : '••••••••••••••••';
+
+  const events = Array.isArray(data.events) ? data.events.slice(0, 20) : [];
+  const log = document.getElementById('event-log');
+  if (events.length === 0) {
+    log.innerHTML = '<div class="event-log-item"><span class="event-dot info"></span><span class="event-time">—</span><span class="event-text text-muted-sr">Nenhum evento registrado.</span></div>';
+  } else {
+    log.innerHTML = events.map(ev => {
+      const mapped = EVENT_LABELS[ev.type] || { dot: 'info', label: ev.type };
+      const detail = ev.details ? (() => { try { return JSON.parse(ev.details); } catch { return ev.details; } })() : null;
+      const detailStr = detail ? (typeof detail === 'object' ? (detail.addr ? ` — ${detail.addr}` : '') : ` — ${detail}`) : '';
+      return `<div class="event-log-item">
+        <span class="event-dot ${mapped.dot}"></span>
+        <span class="event-time">${formatDate(ev.created_at)}</span>
+        <span class="event-text">${escHtml(mapped.label)}${escHtml(detailStr)}</span>
+      </div>`;
+    }).join('');
+  }
+
+  document.getElementById('last-updated').textContent = `Atualizado: ${new Date().toLocaleTimeString('pt-BR')}`;
+}
+
+async function fetchStatus() {
+  try {
+    const data = await api('GET', '/api/status');
+    if (data) renderStatus(data);
+  } catch (_) {}
+}
+
+document.getElementById('btn-start-fallback').addEventListener('click', async (e) => {
+  e.currentTarget.disabled = true;
+  try { await api('POST', '/api/fallback/start'); showToast('Fallback iniciado.', 'success'); await fetchStatus(); }
+  catch (_) {} finally { e.currentTarget.disabled = false; }
+});
+
+document.getElementById('btn-stop-fallback').addEventListener('click', async (e) => {
+  e.currentTarget.disabled = true;
+  try { await api('POST', '/api/fallback/stop'); showToast('Fallback parado.', 'warning'); await fetchStatus(); }
+  catch (_) {} finally { e.currentTarget.disabled = false; }
+});
+
+fetchStatus();
+setInterval(fetchStatus, 3000);
+</script>
+</body>
+</html>
