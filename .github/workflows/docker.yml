@@ -56,7 +56,8 @@ jobs:
           labels: ${{ steps.meta-nginx.outputs.labels }}
           cache-from: type=gha,scope=nginx
           cache-to: type=gha,scope=nginx,mode=max
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
+          # platforms: linux/amd64,linux/arm64
 
       - name: Docker metadata — panel
         id: meta-panel
@@ -80,4 +81,5 @@ jobs:
           labels: ${{ steps.meta-panel.outputs.labels }}
           cache-from: type=gha,scope=panel
           cache-to: type=gha,scope=panel,mode=max
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
+          # platforms: linux/amd64,linux/arm64
