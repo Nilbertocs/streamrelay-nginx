@@ -2,6 +2,10 @@ const router = require('express').Router();
 const db = require('../db');
 const ffmpeg = require('../ffmpeg');
 
+function broadcast() {
+  try { require('./status').broadcast(); } catch (_) {}
+}
+
 router.post('/stream-start', (req, res) => {
   if (req.query.secret !== process.env.HOOK_SECRET) return res.status(403).send('Forbidden');
 
@@ -14,7 +18,9 @@ router.post('/stream-start', (req, res) => {
   db.prepare("INSERT INTO events (type, details) VALUES ('stream_start', ?)").run(
     JSON.stringify({ addr: req.body.addr })
   );
+
   res.send('OK');
+  broadcast();
 });
 
 router.post('/stream-stop', (req, res) => {
@@ -30,7 +36,9 @@ router.post('/stream-stop', (req, res) => {
   }
 
   db.prepare("INSERT INTO events (type, details) VALUES ('stream_stop', NULL)").run();
+
   res.send('OK');
+  broadcast();
 });
 
 module.exports = router;

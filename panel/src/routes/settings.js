@@ -17,6 +17,19 @@ router.post('/fallback-toggle', requireAuth, requireAdmin, (req, res) => {
   res.json({ fallback_enabled: next });
 });
 
+// PATCH /api/settings — update one or more settings by key
+router.patch('/', requireAuth, requireAdmin, (req, res) => {
+  const allowed = ['fallback_enabled'];
+  const stmt = db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)');
+  for (const key of allowed) {
+    if (key in req.body) {
+      const val = req.body[key] === true || req.body[key] === 1 || req.body[key] === '1' ? '1' : '0';
+      stmt.run(key, val);
+    }
+  }
+  res.json({ ok: true });
+});
+
 router.post('/regenerate-key', requireAuth, requireAdmin, (req, res) => {
   const newKey = uuidv4().replace(/-/g, '').substring(0, 16);
   db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('ingest_key', newKey);

@@ -1,5 +1,6 @@
 const express = require('express');
 const session = require('express-session');
+const http = require('http');
 const path = require('path');
 const db = require('./db');
 const SQLiteStore = require('./sqlite-session-store');
@@ -42,6 +43,18 @@ app.post('/auth/logout', (req, res) => {
 
 app.get('/auth/me', requireAuth, (req, res) => {
   res.json({ id: req.session.userId, name: req.session.name, role: req.session.role });
+});
+
+// HLS preview proxy — pipes nginx HLS segments to the browser (authenticated)
+app.get('/hls/*', requireAuth, (req, res) => {
+  const file = req.path.replace(/^\/hls\//, '').replace(/\.\./g, '');
+  const proxyReq = http.get(`http://nginx:80/hls/${file}`, (proxyRes) => {
+    if (proxyRes.statusCode !== 200) return res.status(proxyRes.statusCode).end();
+    res.setHeader('Content-Type', proxyRes.headers['content-type'] || 'application/octet-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    proxyRes.pipe(res);
+  });
+  proxyReq.on('error', () => res.status(503).end());
 });
 
 app.use('/hooks', require('./routes/hooks'));

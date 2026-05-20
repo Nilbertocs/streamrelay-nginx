@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
   <link rel="stylesheet" href="assets/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"></script>
 
   <style>
     .platform-grid {
@@ -226,7 +227,26 @@
         </div>
       </div>
 
-      <!-- Row 3: Platforms + Controls -->
+      <!-- Row 3: Preview -->
+      <div class="row g-3 mb-3">
+        <div class="col-12">
+          <div class="card">
+            <div class="card-header-section">
+              <h5><i class="fa-solid fa-tv me-2"></i>Preview ao Vivo</h5>
+              <span id="preview-badge" class="status-badge offline"><span class="dot"></span>OFFLINE</span>
+            </div>
+            <div style="background:#000;border-radius:8px;overflow:hidden;aspect-ratio:16/9;position:relative;">
+              <video id="preview-video" muted playsinline style="width:100%;height:100%;display:none;"></video>
+              <div id="preview-offline" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:var(--text-muted);">
+                <i class="fa-solid fa-eye-slash" style="font-size:32px;"></i>
+                <span style="font-size:13px;">Aguardando stream...</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Row 4: Platforms + Controls -->
       <div class="row g-3 mb-3">
 
         <!-- Platform list -->
@@ -398,29 +418,87 @@ function renderStatus(data) {
   }
 
   document.getElementById('last-updated').textContent = `Atualizado: ${new Date().toLocaleTimeString('pt-BR')}`;
+
+  updatePreview(state);
 }
 
-async function fetchStatus() {
-  try {
-    const data = await api('GET', '/api/status');
-    if (data) renderStatus(data);
-  } catch (_) {}
+/* ── HLS Preview ─────────────────────────────────── */
+let _hls = null;
+let _lastState = 'offline';
+
+function updatePreview(state) {
+  if (state === _lastState) return;
+  _lastState = state;
+
+  const video   = document.getElementById('preview-video');
+  const offline = document.getElementById('preview-offline');
+  const badge   = document.getElementById('preview-badge');
+
+  if (state === 'offline') {
+    badge.className = 'status-badge offline';
+    badge.innerHTML = '<span class="dot"></span>OFFLINE';
+    video.style.display = 'none';
+    offline.style.display = 'flex';
+    if (_hls) { _hls.destroy(); _hls = null; }
+    video.src = '';
+    return;
+  }
+
+  badge.className = state === 'live' ? 'status-badge live' : 'status-badge fallback';
+  badge.innerHTML = state === 'live'
+    ? '<span class="dot"></span>AO VIVO'
+    : '<span class="dot"></span>FALLBACK';
+  video.style.display = 'block';
+  offline.style.display = 'none';
+
+  if (_hls) return; // already loaded
+
+  const src = '/hls/stream.m3u8';
+  if (typeof Hls !== 'undefined' && Hls.isSupported()) {
+    _hls = new Hls({ liveSyncDurationCount: 2, liveMaxLatencyDurationCount: 5 });
+    _hls.loadSource(src);
+    _hls.attachMedia(video);
+    _hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
+    _hls.on(Hls.Events.ERROR, (_, d) => {
+      if (d.fatal) { _hls.destroy(); _hls = null; }
+    });
+  } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+    video.src = src;
+    video.play().catch(() => {});
+  }
 }
 
+/* ── SSE — instant status updates ───────────────── */
+function connectSSE() {
+  const es = new EventSource('/api/status/events');
+
+  es.onmessage = (e) => {
+    try {
+      const data = JSON.parse(e.data);
+      renderStatus(data);
+    } catch (_) {}
+  };
+
+  es.onerror = () => {
+    es.close();
+    setTimeout(connectSSE, 3000); // reconnect
+  };
+}
+
+/* ── Manual controls ─────────────────────────────── */
 document.getElementById('btn-start-fallback').addEventListener('click', async (e) => {
   e.currentTarget.disabled = true;
-  try { await api('POST', '/api/fallback/start'); showToast('Fallback iniciado.', 'success'); await fetchStatus(); }
+  try { await api('POST', '/api/fallback/start'); showToast('Fallback iniciado.', 'success'); }
   catch (_) {} finally { e.currentTarget.disabled = false; }
 });
 
 document.getElementById('btn-stop-fallback').addEventListener('click', async (e) => {
   e.currentTarget.disabled = true;
-  try { await api('POST', '/api/fallback/stop'); showToast('Fallback parado.', 'warning'); await fetchStatus(); }
+  try { await api('POST', '/api/fallback/stop'); showToast('Fallback parado.', 'warning'); }
   catch (_) {} finally { e.currentTarget.disabled = false; }
 });
 
-fetchStatus();
-setInterval(fetchStatus, 3000);
+connectSSE();
 </script>
 </body>
 </html>
