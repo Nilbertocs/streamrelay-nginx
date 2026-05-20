@@ -8,8 +8,8 @@ const clients = new Set();
 function getStatus() {
   const procs = ffmpeg.status();
   let state = 'offline';
-  if (procs.relay?.running) state = 'live';
-  else if (procs.fallback?.running) state = 'fallback';
+  if (procs.relay?.running) state = procs.relay.hlsReady ? 'live' : 'starting';
+  else if (procs.fallback?.running) state = procs.fallback.hlsReady ? 'fallback' : 'starting';
 
   return {
     state,

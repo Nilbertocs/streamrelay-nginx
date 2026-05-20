@@ -1,4 +1,5 @@
 const { spawn } = require('child_process');
+const http = require('http');
 
 const processes = new Map();
 const NGINX_LIVE = 'rtmp://nginx/live/stream';
@@ -33,10 +34,28 @@ function buildFallbackArgs(filePath, type) {
   ];
 }
 
+function checkHlsReady(name) {
+  const entry = processes.get(name);
+  if (!entry || entry.hlsReady) return;
+
+  const req = http.get('http://nginx:80/hls/stream.m3u8', (res) => {
+    res.resume();
+    if (res.statusCode === 200) {
+      entry.hlsReady = true;
+      try { require('./routes/status').broadcast(); } catch (_) {}
+    } else {
+      setTimeout(() => checkHlsReady(name), 1000);
+    }
+  });
+  req.on('error', () => setTimeout(() => checkHlsReady(name), 1000));
+  req.setTimeout(2000, () => req.destroy());
+}
+
 function start(name, args, { onExit } = {}) {
   stop(name);
   const proc = spawn('ffmpeg', args, { stdio: ['ignore', 'pipe', 'pipe'] });
-  processes.set(name, { proc, startedAt: new Date() });
+  processes.set(name, { proc, startedAt: new Date(), hlsReady: false });
+  checkHlsReady(name);
 
   proc.stderr.on('data', data => {
     const line = data.toString().trim();
@@ -66,7 +85,7 @@ function stop(name) {
 function status() {
   const result = {};
   for (const [name, entry] of processes.entries()) {
-    result[name] = { running: true, pid: entry.proc.pid, startedAt: entry.startedAt.toISOString() };
+    result[name] = { running: true, hlsReady: entry.hlsReady, pid: entry.proc.pid, startedAt: entry.startedAt.toISOString() };
   }
   return result;
 }

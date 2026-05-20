@@ -348,6 +348,7 @@ function renderStatus(data) {
   const iconMap = {
     live:     { icon: 'fa-solid fa-circle-dot',  label: 'AO VIVO',  sub: 'Transmitindo para os destinos' },
     fallback: { icon: 'fa-solid fa-film',         label: 'FALLBACK', sub: 'Reproduzindo mídia de fallback' },
+    starting: { icon: 'fa-solid fa-spinner fa-spin', label: 'INICIANDO', sub: 'Preparando stream...' },
     offline:  { icon: 'fa-solid fa-circle-xmark', label: 'OFFLINE',  sub: 'Aguardando sinal de entrada' },
   };
   const m = iconMap[state] || iconMap.offline;
@@ -468,11 +469,14 @@ function updatePreview(state) {
 
   if (state !== _previewDisplayState) {
     _previewDisplayState = state;
-    if (state === 'offline') {
-      badge.className = 'status-badge offline';
-      badge.innerHTML = '<span class="dot"></span>OFFLINE';
+    if (state === 'offline' || state === 'starting') {
+      badge.className = state === 'offline' ? 'status-badge offline' : 'status-badge fallback';
+      badge.innerHTML = state === 'offline' ? '<span class="dot"></span>OFFLINE' : '<i class="fa-solid fa-spinner fa-spin me-1"></i> INICIANDO';
       video.style.display = 'none';
       offline.style.display = 'flex';
+      offline.innerHTML = state === 'offline' 
+        ? '<i class="fa-solid fa-eye-slash" style="font-size:32px;"></i><span style="font-size:13px;">Aguardando stream...</span>'
+        : '<i class="fa-solid fa-spinner fa-spin" style="font-size:32px;"></i><span style="font-size:13px;">Gerenciando preview...</span>';
     } else {
       badge.className = state === 'live' ? 'status-badge live' : 'status-badge fallback';
       badge.innerHTML = state === 'live'
@@ -483,7 +487,7 @@ function updatePreview(state) {
     }
   }
 
-  if (state === 'offline') {
+  if (state === 'offline' || state === 'starting') {
     clearTimeout(_hlsRetryTimer);
     _hlsRetryTimer = null;
     if (_hls) { _hls.destroy(); _hls = null; }

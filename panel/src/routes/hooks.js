@@ -27,30 +27,7 @@ router.post('/stream-start', (req, res) => {
   setTimeout(() => {
     ffmpeg.stop('fallback');
     ffmpeg.start('relay', ffmpeg.buildRelayArgs(streamName));
-
-    // Poll nginx until HLS segments are actually available before
-    // notifying dashboards — prevents the player from hitting 404s.
-    let attempts = 0;
-    const maxAttempts = 15;
-    const checkHls = () => {
-      attempts++;
-      const req = http.get('http://nginx:80/hls/stream.m3u8', (res) => {
-        res.resume();
-        if (res.statusCode === 200) {
-          broadcast();
-        } else if (attempts < maxAttempts) {
-          setTimeout(checkHls, 1000);
-        } else {
-          broadcast(); // give up waiting, broadcast anyway
-        }
-      });
-      req.on('error', () => {
-        if (attempts < maxAttempts) setTimeout(checkHls, 1000);
-        else broadcast();
-      });
-      req.setTimeout(2000, () => { req.destroy(); });
-    };
-    setTimeout(checkHls, 1000);
+    broadcast();
   }, 2000);
 });
 
