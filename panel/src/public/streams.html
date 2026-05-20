@@ -267,7 +267,7 @@ function renderTable(streams) {
       const id      = this.dataset.id;
       const enabled = this.checked;
       try {
-        await api('PATCH', `/api/streams/${id}`, { enabled });
+        await api('PATCH', `/api/streams/${id}/toggle`);
         showToast(enabled ? 'Destino ativado.' : 'Destino desativado.', 'success');
       } catch (_) {
         this.checked = !enabled; /* revert */
