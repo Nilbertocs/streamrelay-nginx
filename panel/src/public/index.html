@@ -429,7 +429,7 @@ function renderStatus(data) {
       else if (d.enabled && !d.connected) { dotClass = 'offline'; statusText = 'Aguardando'; }
 
       const uptimeStr = d.uptime_sec > 0 ? formatUptimeLive(new Date(Date.now() - d.uptime_sec * 1000).toISOString()) : '—';
-      const bitrateStr = d.bytes_out > 0 ? formatBytes(d.bytes_out) : '—';
+      const bitrateStr = d.bw_out > 0 ? formatBytes(d.bw_out) + '/s' : (d.bytes_out > 0 ? formatBytes(d.bytes_out) : '—');
 
       return `<div class="platform-item" onclick="this.classList.toggle('expanded')">
         <div class="platform-item-header">

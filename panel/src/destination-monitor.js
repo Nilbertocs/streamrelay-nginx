@@ -1,8 +1,10 @@
 const http = require('http');
+const dns = require('dns');
 const db = require('./db');
 
 let lastStatus = [];
 let pollInterval = null;
+let resolvedHosts = new Map();
 
 function parseXml(xml) {
   const clients = [];
@@ -18,55 +20,23 @@ function parseXml(xml) {
     if (block.includes('<publishing/>') || block.includes('<publishing>')) continue;
 
     const address = block.match(/<address>(.*?)<\/address>/)?.[1] || '';
-    const port = block.match(/<port>(.*?)<\/port>/)?.[1] || '';
-    const connected = block.match(/<time>(.*?)<<\/time>/)?.[1] || block.match(/<time>(\d+)<\/time>/)?.[1] || '0';
+    const time = block.match(/<time>(\d+)<\/time>/)?.[1] || '0';
     const bytesOut = block.match(/<bytes_out>(\d+)<\/bytes_out>/)?.[1] || '0';
+    const bwOut = block.match(/<bw_out>(\d+)<\/bw_out>/)?.[1] || '0';
     const active = block.includes('<active/>') || block.includes('<active>');
-    const flashver = block.match(/<flashver>(.*?)<\/flashver>/)?.[1] || '';
+
+    if (address === '127.0.0.1') continue;
 
     clients.push({
       address,
-      port,
-      uptime_ms: parseInt(connected, 10),
+      uptime_ms: parseInt(time, 10),
       bytes_out: parseInt(bytesOut, 10),
-      active,
-      flashver
+      bw_out: parseInt(bwOut, 10),
+      active
     });
   }
 
   return clients;
-}
-
-function matchDestinations(clients) {
-  const streams = db.prepare('SELECT id, name, platform, rtmp_url, stream_key, enabled FROM streams ORDER BY name').all();
-
-  return streams.map(stream => {
-    const base = {
-      id: stream.id,
-      name: stream.name,
-      platform: stream.platform,
-      enabled: !!stream.enabled
-    };
-
-    if (!stream.enabled) {
-      return { ...base, connected: false, uptime_sec: 0, bytes_out: 0, error: null };
-    }
-
-    const urlHost = extractHost(stream.rtmp_url);
-    const matched = clients.find(c => c.address === urlHost);
-
-    if (matched) {
-      return {
-        ...base,
-        connected: true,
-        uptime_sec: Math.floor(matched.uptime_ms / 1000),
-        bytes_out: matched.bytes_out,
-        error: null
-      };
-    }
-
-    return { ...base, connected: false, uptime_sec: 0, bytes_out: 0, error: null };
-  });
 }
 
 function extractHost(rtmpUrl) {
@@ -80,6 +50,60 @@ function extractHost(rtmpUrl) {
   }
 }
 
+function resolveHost(hostname) {
+  return new Promise((resolve) => {
+    if (!hostname) return resolve([]);
+    const cached = resolvedHosts.get(hostname);
+    if (cached && cached.ts > Date.now() - 60000) return resolve(cached.ips);
+
+    dns.resolve4(hostname, (err, addresses) => {
+      const ips = err ? [] : addresses;
+      resolvedHosts.set(hostname, { ips, ts: Date.now() });
+      resolve(ips);
+    });
+  });
+}
+
+async function matchDestinations(clients) {
+  const streams = db.prepare('SELECT id, name, platform, rtmp_url, stream_key, enabled FROM streams ORDER BY name').all();
+
+  const results = [];
+
+  for (const stream of streams) {
+    const base = {
+      id: stream.id,
+      name: stream.name,
+      platform: stream.platform,
+      enabled: !!stream.enabled
+    };
+
+    if (!stream.enabled) {
+      results.push({ ...base, connected: false, uptime_sec: 0, bytes_out: 0, bw_out: 0, error: null });
+      continue;
+    }
+
+    const hostname = extractHost(stream.rtmp_url);
+    const ips = await resolveHost(hostname);
+
+    const matched = clients.find(c => c.address === hostname || ips.includes(c.address));
+
+    if (matched) {
+      results.push({
+        ...base,
+        connected: true,
+        uptime_sec: Math.floor(matched.uptime_ms / 1000),
+        bytes_out: matched.bytes_out,
+        bw_out: matched.bw_out,
+        error: null
+      });
+    } else {
+      results.push({ ...base, connected: false, uptime_sec: 0, bytes_out: 0, bw_out: 0, error: null });
+    }
+  }
+
+  return results;
+}
+
 function poll() {
   const req = http.get({
     host: 'nginx',
@@ -90,11 +114,11 @@ function poll() {
   }, (res) => {
     let data = '';
     res.on('data', chunk => { data += chunk; });
-    res.on('end', () => {
+    res.on('end', async () => {
       if (res.statusCode !== 200) return;
       try {
         const clients = parseXml(data);
-        const newStatus = matchDestinations(clients);
+        const newStatus = await matchDestinations(clients);
         const changed = JSON.stringify(newStatus) !== JSON.stringify(lastStatus);
         lastStatus = newStatus;
         if (changed) {
@@ -121,6 +145,7 @@ function getDestinationStatus() {
       connected: false,
       uptime_sec: 0,
       bytes_out: 0,
+      bw_out: 0,
       error: null
     }));
   }
