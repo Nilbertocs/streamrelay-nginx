@@ -1,5 +1,4 @@
 const router = require('express').Router();
-const http = require('http');
 const db = require('../db');
 const ffmpeg = require('../ffmpeg');
 
@@ -18,23 +17,19 @@ router.post('/stream-start', (req, res) => {
     JSON.stringify({ addr: req.body.addr })
   );
 
-  // Respond OK first so nginx accepts the OBS stream before the relay tries to read it.
-  // nginx holds the publish pending until it gets this response, so the ingest stream
-  // does not exist yet when this handler runs — starting FFmpeg before responding would
-  // cause it to connect to a stream that hasn't been accepted yet and immediately exit.
   res.send('OK');
 
   setTimeout(() => {
     ffmpeg.stop('fallback');
-    ffmpeg.start('relay', ffmpeg.buildRelayArgs(streamName));
+    ffmpeg.setObsActive(true);
     broadcast();
-  }, 2000);
+  }, 500);
 });
 
 router.post('/stream-stop', (req, res) => {
   if (req.query.secret !== process.env.HOOK_SECRET) return res.status(403).send('Forbidden');
 
-  ffmpeg.stop('relay');
+  ffmpeg.setObsActive(false);
 
   const fallbackEnabled = db.prepare("SELECT value FROM settings WHERE key = 'fallback_enabled'").get()?.value;
   const activeFile = db.prepare('SELECT * FROM fallback_files WHERE active = 1').get();

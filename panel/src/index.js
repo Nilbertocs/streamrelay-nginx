@@ -72,4 +72,7 @@ app.get('*', requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, 'public/index.html'));
 });
 
+const destMonitor = require('./destination-monitor');
+destMonitor.start();
+
 app.listen(PORT, () => console.log(`StreamRelay panel on :${PORT}`));

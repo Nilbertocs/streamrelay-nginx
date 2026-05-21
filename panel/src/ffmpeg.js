@@ -4,17 +4,10 @@ const http = require('http');
 const processes = new Map();
 const NGINX_LIVE = 'rtmp://nginx/live/stream';
 
-function buildRelayArgs(ingestKey) {
-  return [
-    '-rtmp_live', 'live',
-    '-i', `rtmp://nginx/ingest/${ingestKey}`,
-    // Lightweight transcode guarantees perfect sequence headers and keyframes for HLS
-    '-c:v', 'libx264', '-preset', 'veryfast', '-b:v', '3000k',
-    '-c:a', 'aac', '-b:a', '128k',
-    '-f', 'flv',
-    NGINX_LIVE
-  ];
-}
+let obsActive = false;
+let obsStartedAt = null;
+let obsHlsReady = false;
+let _hlsPollTimer = null;
 
 function buildFallbackArgs(filePath, type) {
   if (type === 'mp4') {
@@ -36,6 +29,44 @@ function buildFallbackArgs(filePath, type) {
   ];
 }
 
+function _pollHlsForObs() {
+  if (!obsActive || obsHlsReady) return;
+
+  const req = http.get({
+    host: 'nginx',
+    port: 80,
+    path: `/hls/stream.m3u8?t=${Date.now()}`,
+    agent: false
+  }, (res) => {
+    res.resume();
+    if (res.statusCode >= 200 && res.statusCode < 400) {
+      process.stdout.write(`[obs] HLS manifest is ready (HTTP ${res.statusCode})\n`);
+      obsHlsReady = true;
+      try { require('./routes/status').broadcast(); } catch (e) { process.stdout.write(`[obs] broadcast failed: ${e.message}\n`); }
+    } else {
+      _hlsPollTimer = setTimeout(_pollHlsForObs, 1000);
+    }
+  });
+
+  req.on('error', (e) => {
+    process.stdout.write(`[obs] HLS poll error: ${e.message}\n`);
+    _hlsPollTimer = setTimeout(_pollHlsForObs, 1000);
+  });
+}
+
+function setObsActive(active) {
+  obsActive = active;
+  if (active) {
+    obsStartedAt = new Date();
+    obsHlsReady = false;
+    _hlsPollTimer = setTimeout(_pollHlsForObs, 1000);
+  } else {
+    obsStartedAt = null;
+    obsHlsReady = false;
+    if (_hlsPollTimer) { clearTimeout(_hlsPollTimer); _hlsPollTimer = null; }
+  }
+}
+
 function checkHlsReady(name) {
   const entry = processes.get(name);
   if (!entry || entry.hlsReady) return;
@@ -44,7 +75,7 @@ function checkHlsReady(name) {
     host: 'nginx',
     port: 80,
     path: `/hls/stream.m3u8?t=${Date.now()}`,
-    agent: false // Disable keep-alive to avoid socket reuse issues on 404s
+    agent: false
   }, (res) => {
     res.resume();
     if (res.statusCode >= 200 && res.statusCode < 400) {
@@ -101,6 +132,14 @@ function status() {
   return result;
 }
 
+function obsStatus() {
+  return {
+    active: obsActive,
+    hlsReady: obsHlsReady,
+    startedAt: obsStartedAt ? obsStartedAt.toISOString() : null
+  };
+}
+
 function isRunning(name) { return processes.has(name); }
 
-module.exports = { start, stop, status, isRunning, buildRelayArgs, buildFallbackArgs };
+module.exports = { start, stop, status, isRunning, buildFallbackArgs, setObsActive, obsStatus };

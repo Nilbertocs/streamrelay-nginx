@@ -40,6 +40,6 @@ RUN chmod +x /entrypoint.sh
 
 RUN echo "" > /etc/nginx/rtmp-push.conf
 
-EXPOSE 1935
+EXPOSE 1935 80
 
 ENTRYPOINT ["/entrypoint.sh"]
